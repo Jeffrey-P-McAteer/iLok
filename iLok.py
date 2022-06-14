@@ -6,6 +6,7 @@ import subprocess
 import traceback
 import getpass
 import time
+import tempfile
 
 # https://github.com/picklepete/pyicloud
 # python -m pip install --user pyicloud
@@ -29,6 +30,18 @@ except:
     *('-m pip install --user click'.split(' '))
   ])
   import click
+
+# python -m pip install --user staticmap
+try:
+  import staticmap
+except:
+  traceback.print_exc()
+  subprocess.run([
+    sys.executable,
+    *('-m pip install --user staticmap'.split(' '))
+  ])
+  import staticmap
+
 
 # Comcast's v6 SUCKS, change stdlib to ignore it
 import socket
@@ -88,18 +101,30 @@ def get_device(devices, name):
       return d
   return None
 
+
 def main():
-  appleid = 'jeffrey.p.mcateer@gmail.com'
-  pw = ''
-  cookie_directory = '/tmp/idevices_cookies/'
-  os.makedirs(cookie_directory, exist_ok=True)
   
+  # profile_img must be smaller than 512x512 px (size of map)
+  profile_img = '/j/photos/profiles/basic-1x1-tiny.png'
+  profile_img_size_px = (128, 128)
+
+  map_img = os.path.join(tempfile.gettempdir(), 'iLok.png')
+
+  print(f'Your map profile picture will be read from {profile_img} ')
+  print(f'Your map image will be written to {map_img} ')
+  
+  appleid = os.environ.get('APPLE_ID', None) or getpass.getpass('Apple ID: ').strip()
+  pw = ''
+  cookie_directory = os.path.join(tempfile.gettempdir(), 'idevices_cookies')
+  os.makedirs(cookie_directory, exist_ok=True)
+  print(f'Storing idevice cookies in {cookie_directory}')
+
   api = None
   try:
     api = PyiCloudService(appleid, pw, cookie_directory=cookie_directory)
-    __ignored = get_device(api.devices, 'iPhone 12 Pro')
+    __ignored = get_device(api.devices, 'iPhone')
   except Exception as e:
-    print(e)
+    traceback.print_exc()
     pw = os.environ.get('APPLE_PW', None) or getpass.getpass('Apple Password: ').strip()
     api = PyiCloudService(appleid, pw, cookie_directory=cookie_directory)
 
@@ -109,15 +134,31 @@ def main():
   my_phone = get_device(api.devices, 'iPhone') # text is arbitrary search
   print(f'my_phone={my_phone}')
 
+  input('Press enter to begin tracking!')
+
+  the_map = staticmap.StaticMap(1224, 960, url_template='http://a.tile.osm.org/{z}/{x}/{y}.png')
+
   while True:
-    time.sleep(1.0)
 
     l = my_phone.location()
     #print(f'I am at {l}')
     lat = l.get('latitude', 0.0)
     lon = l.get('longitude', 0.0)
 
-    print(f'I am at {lat}, {lon}')
+    the_map.markers = [
+      staticmap.IconMarker((lon, lat), profile_img, int(profile_img_size_px[0] / 2), int(profile_img_size_px[1] / 2) )
+    ]
+
+    img = the_map.render(zoom=12, center=(lon, lat))
+    img.save(map_img)
+
+    # Rapid Debugging, replace feh w/ image viewer of choice
+    # subprocess.run(['feh', map_img])
+
+    print(f'I am at {lat}, {lon} and a map is rendered at {map_img}')
+    time.sleep(2.0)
+
+
 
 
 
