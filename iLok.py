@@ -7,6 +7,7 @@ import traceback
 import getpass
 import time
 import tempfile
+import random
 
 # https://github.com/picklepete/pyicloud
 # python -m pip install --user pyicloud
@@ -138,15 +139,29 @@ def main():
 
   the_map = staticmap.StaticMap(1224, 960, url_template='http://a.tile.osm.org/{z}/{x}/{y}.png')
 
+  history_trail = []
+  history_trail_max_len = 12
+
   while True:
 
     l = my_phone.location()
-    #print(f'I am at {l}')
+
+    # For testing
+    #l = {'latitude': random.uniform(38.2443, 38.4443), 'longitude': random.uniform(-77.4718, -77.6718)}
+
     lat = l.get('latitude', 0.0)
     lon = l.get('longitude', 0.0)
 
+    while len(history_trail) > history_trail_max_len:
+      history_trail.pop(0) # remove from beginning of list
+
+    history_trail.append( [lon, lat] )
+
     the_map.markers = [
       staticmap.IconMarker((lon, lat), profile_img, int(profile_img_size_px[0] / 2), int(profile_img_size_px[1] / 2) )
+    ]
+    the_map.lines = [
+      staticmap.Line(history_trail, '#ff0000', 2)
     ]
 
     img = the_map.render(zoom=12, center=(lon, lat))
